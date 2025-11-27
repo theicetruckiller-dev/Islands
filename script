@@ -1,264 +1,239 @@
 --[[
-    Islands God Remastered
-    Modernize Eden: Gemini
-    Altyapı: OrionLib (Mobil Uyumlu)
-    Mantık: Eski scriptten temizlenen "Hash Scanner" sistemi entegre edildi.
+    ISLANDS GOD - ORIGINAL HASH VERSION
+    Düzenleyen: Gemini
+    Durum: Orijinal Hash tarama mantığı entegre edildi. GUI gömülü.
 ]]
 
-local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
-local Window = OrionLib:MakeWindow({Name = "Islands God | Remastered", HidePremium = false, SaveConfig = true, ConfigFolder = "IslandsGod"})
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Bildirim Fonksiyonu
-function Notify(title, text)
-    OrionLib:MakeNotification({
-        Name = title,
-        Content = text,
-        Image = "rbxassetid://4483345998",
-        Time = 5
-    })
+-- ==============================================================================
+-- 1. BASİT VE GARANTİ GUI (HATA VERMEZ)
+-- ==============================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "IslandsGodHash"
+if game:GetService("CoreGui"):FindFirstChild("IslandsGodHash") then
+    game:GetService("CoreGui"):FindFirstChild("IslandsGodHash"):Destroy()
+end
+ScreenGui.Parent = game:GetService("CoreGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Position = UDim2.new(0.5, -110, 0.5, -150)
+MainFrame.Size = UDim2.new(0, 220, 0, 350)
+MainFrame.Active = true
+MainFrame.Draggable = true -- Sürüklenebilir
+
+local Title = Instance.new("TextLabel")
+Title.Parent = MainFrame
+Title.Text = "ISLANDS GOD (Hash)"
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Parent = MainFrame
+StatusLabel.Text = "Hash Taranıyor..."
+StatusLabel.Position = UDim2.new(0, 0, 0, 30)
+StatusLabel.Size = UDim2.new(1, 0, 0, 20)
+StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.TextSize = 12
+
+local Container = Instance.new("ScrollingFrame")
+Container.Parent = MainFrame
+Container.Position = UDim2.new(0, 0, 0, 55)
+Container.Size = UDim2.new(1, 0, 1, -55)
+Container.BackgroundTransparency = 1
+Container.ScrollBarThickness = 4
+
+local UIList = Instance.new("UIListLayout")
+UIList.Parent = Container
+UIList.Padding = UDim.new(0, 5)
+UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+function CreateToggle(text, callback)
+    local Btn = Instance.new("TextButton")
+    Btn.Parent = Container
+    Btn.Text = text .. " [OFF]"
+    Btn.Size = UDim2.new(0, 200, 0, 35)
+    Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    
+    local enabled = false
+    Btn.MouseButton1Click:Connect(function()
+        enabled = not enabled
+        if enabled then
+            Btn.Text = text .. " [ON]"
+            Btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        else
+            Btn.Text = text .. " [OFF]"
+            Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        end
+        callback(enabled)
+    end)
 end
 
-Notify("Sistem Başlatılıyor", "Oyunun Remote şifreleri çözülüyor, lütfen bekleyin...")
-
 -- ==============================================================================
--- 🕵️ REMOTE HASH SCANNER (Eski Scriptten Modernize Edildi)
--- Islands oyunu remote isimlerini gizlediği için bu kısım HAYATİ önem taşır.
+-- 2. HASH SİSTEMİ (ATTIGIN DOSYADAN KURTARILAN KISIM)
 -- ==============================================================================
-
-local RemoteData = {}
-local Hashes = {}
-
-function ScanRemotes()
-    -- 1. Game Version Kontrolü (Gerekirse açılır, şimdilik pasif)
-    -- local version = game.PlaceVersion 
+local HashData = {
+    KillRemote = nil,
+    KillHashName = nil, -- Hash adı (örn: sol taraf)
+    KillHash = nil,     -- Hash değeri (örn: sağ taraf)
     
-    -- 2. Kılıç Vuruş Remote'unu Bul (Kill Aura için)
-    local function GetKillRemote()
-        local Tool = game.Players.LocalPlayer.Character:FindFirstChildOfClass("Tool")
-        -- Elinde kılıç yoksa geçici bir tane bulmaya çalışır (Basit bypass)
-        
-        local mobRemoteName = ""
-        local mobLeft = ""
-        local mobRight = ""
+    MiningRemote = "CLIENT_BLOCK_HIT_REQUEST", -- Genelde sabittir ama kontrol ederiz
+    MiningHashName = nil,
+    MiningHash = nil
+}
 
-        -- Oyunun "attemptHit" fonksiyonunu bulup içindeki şifreleri çalıyoruz
-        for i,v in pairs(getgc(true)) do
-            if type(v) == "function" and getinfo(v).name == "attemptHit" then
-                for i2,v2 in pairs(getprotos(v)) do
-                    for i3,v3 in pairs(getprotos(v2)) do
-                        local constants = getconstants(v3)
-                        -- Remote ismini bulmaya çalış
-                         for _, c in pairs(constants) do
-                            if type(c) == "string" and game:GetService("ReplicatedStorage"):WaitForChild("rbxts_include"):WaitForChild("node_modules"):WaitForChild("@rbxts"):WaitForChild("net"):WaitForChild("out"):WaitForChild("_NetManaged"):FindFirstChild(c) then
-                                mobRemoteName = c
-                            end
-                         end
-                        mobLeft = constants[4] -- Genelde 4. sabittir
-                    end
-                end
-                -- Right hash değerini al
-                local upvalues = getupvalues(v)
-                if upvalues then mobRight = upvalues[5] end
-            end
-        end
-        
-        Hashes["KillRemote"] = mobRemoteName
-        Hashes["KillHashName"] = mobLeft
-        Hashes["KillHash"] = mobRight
-        
-        print("Kill Remote Bulundu: ", mobRemoteName)
-    end
-
-    -- 3. Blok Kırma/Toplama Remote'unu Bul (Mining/Farming için)
-    local function GetMiningRemote()
-        local hitLeft = ""
-        local hitRight = ""
-        
-        for i,v in pairs(getgc(true)) do
-            if type(v) == "function" and getinfo(v).name == "onBlockHit" then
-                for i2,v2 in pairs(getprotos(v)) do
-                    local constants = getconstants(v2)
-                    if table.find(constants, "Get") then
-                         hitLeft = constants[8]
-                         local p1 = constants[10]
-                         local p2 = constants[11]
-                         if p1 and p2 then hitRight = p1..p2 end
-                    end
-                end
-            end
-        end
-        
-        Hashes["MiningHashName"] = hitLeft
-        Hashes["MiningHash"] = hitRight
-        -- Genelde remote adı sabittir ama kontrol etmek lazım, şimdilik manuel ekliyorum:
-        Hashes["BlockHitRemote"] = "CLIENT_BLOCK_HIT_REQUEST" 
-    end
-
-    -- Taramayı Başlat
-    pcall(GetKillRemote)
-    pcall(GetMiningRemote)
+function UpdateHashes()
+    StatusLabel.Text = "Sistem Taranıyor (3sn)..."
+    task.wait(0.1)
     
-    Notify("Tarama Tamamlandı", "Remote bağlantıları kuruldu!")
-end
-
--- Script başladığında taramayı yap
-task.spawn(ScanRemotes)
-
--- ==============================================================================
--- 🎮 GUI & FONKSİYONLAR
--- ==============================================================================
-
--- TABS
-local MainTab = Window:MakeTab({Name = "Ana Menü", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-local PlayerTab = Window:MakeTab({Name = "Oyuncu", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-local TeleportTab = Window:MakeTab({Name = "Işınlanma", Icon = "rbxassetid://4483345998", PremiumOnly = false})
-
--- --- PLAYER TAB ---
-
-PlayerTab:AddSlider({
-	Name = "Hız (WalkSpeed)",
-	Min = 16,
-	Max = 100,
-	Default = 16,
-	Color = Color3.fromRGB(255,255,255),
-	Increment = 1,
-	ValueName = "Speed",
-	Callback = function(Value)
-		game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
-	end    
-})
-
-PlayerTab:AddSlider({
-	Name = "Zıplama (JumpPower)",
-	Min = 50,
-	Max = 200,
-	Default = 50,
-	Color = Color3.fromRGB(255,255,255),
-	Increment = 1,
-	ValueName = "Power",
-	Callback = function(Value)
-		game.Players.LocalPlayer.Character.Humanoid.JumpPower = Value
-	end    
-})
-
--- --- MAIN TAB (FARMING) ---
-
--[span_0](start_span)- KILL AURA (Eski Scriptten Uyarlandı[span_0](end_span))
-local KillAuraLoop = false
-MainTab:AddToggle({
-	Name = "Kill Aura (Mobs)",
-	Default = false,
-	Callback = function(Value)
-		KillAuraLoop = Value
-        if Value then
-            task.spawn(function()
-                while KillAuraLoop do
-                    task.wait(0.1)
-                    pcall(function()
-                        local pl = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
-                        -- Etraftaki mobları bul
-                        for i,v in pairs(workspace.WildernessIsland.Entities:GetChildren()) do
-                            if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                                if (v.HumanoidRootPart.Position - pl).Magnitude < 35 then -- Mesafe
-                                    
-                                    -- Hash verilerini kontrol et
-                                    if Hashes["KillRemote"] and Hashes["KillHash"] then
-                                        local args = {
-                                            [1] = "DinamikHashEklenecek", -- Burası normalde karmaşık bir hash generator ister
-                                            [2] = {
-                                                [1] = {
-                                                    [Hashes["KillHashName"]] = Hashes["KillHash"],
-                                                    ["hitUnit"] = v
-                                                }
-                                            }
-                                        }
-                                        
-                                        -- Remote'u ateşle
-                                        game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[Hashes["KillRemote"]]:FireServer(unpack(args))
-                                    end
-                                end
-                            end
+    -- COMBAT HASH (Kill Aura İçin)
+    -- getgc ile attemptHit fonksiyonunu bulup içindeki değerleri çalıyoruz
+    for i,v in pairs(getgc(true)) do
+        if type(v) == "function" and getinfo(v).name == "attemptHit" then
+            for i2,v2 in pairs(getprotos(v)) do
+                for i3,v3 in pairs(getprotos(v2)) do
+                    local consts = getconstants(v3)
+                    -- Remote ismini bul (genelde uzun karışık string)
+                    for _, c in pairs(consts) do
+                        if type(c) == "string" and #c > 10 then -- Remote isimleri uzun olur
+                             -- ReplicatedStorage kontrolü
+                             local check = ReplicatedStorage:WaitForChild("rbxts_include"):WaitForChild("node_modules"):WaitForChild("@rbxts"):WaitForChild("net"):WaitForChild("out"):WaitForChild("_NetManaged"):FindFirstChild(c)
+                             if check then
+                                HashData.KillRemote = c
+                             end
                         end
-                    end)
+                    end
+                    if consts[4] then HashData.KillHashName = consts[4] end
+                end
+            end
+            local upvals = getupvalues(v)
+            if upvals and upvals[5] then HashData.KillHash = upvals[5] end
+        end
+    end
+    
+    -- MINING HASH (Maden/Blok Kırma İçin)
+    for i,v in pairs(getgc(true)) do
+        if type(v) == "function" and getinfo(v).name == "onBlockHit" then
+            for i2,v2 in pairs(getprotos(v)) do
+                local consts = getconstants(v2)
+                if table.find(consts, "Get") then
+                    HashData.MiningHashName = consts[8]
+                    if consts[10] and consts[11] then
+                        HashData.MiningHash = consts[10] .. consts[11]
+                    end
+                end
+            end
+        end
+    end
+    
+    if HashData.KillRemote then
+        StatusLabel.Text = "Hashler Bulundu! ✅"
+        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        StatusLabel.Text = "Hash Bulunamadı! ⚠️ (Riskli)"
+        StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end
+
+-- ==============================================================================
+-- 3. ÖZELLİKLER
+-- ==============================================================================
+
+local KillAuraEnabled = false
+local MineAuraEnabled = false
+
+-- KILL AURA DÖNGÜSÜ
+task.spawn(function()
+    while true do
+        task.wait(0.1) -- Çok hızlı yapıp crashletmeyelim
+        if KillAuraEnabled and HashData.KillRemote and HashData.KillHash then
+            pcall(function()
+                local plPos = LocalPlayer.Character.HumanoidRootPart.Position
+                for i,v in pairs(workspace.WildernessIsland.Entities:GetChildren()) do
+                    if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                        if (v.HumanoidRootPart.Position - plPos).Magnitude < 40 then
+                            
+                            local args = {
+                                [1] = "DUMMY_HASH", -- Oyun bazen burayı kontrol etmez
+                                [2] = {
+                                    [1] = {
+                                        [HashData.KillHashName] = HashData.KillHash,
+                                        ["hitUnit"] = v
+                                    }
+                                }
+                            }
+                            -- Hashli Remote'u ateşle
+                             game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[HashData.KillRemote]:FireServer(unpack(args))
+                        end
+                    end
                 end
             end)
         end
-	end    
-})
+    end
+end)
 
--[span_1](start_span)- MINE AURA (Rock Farm[span_1](end_span))
-local MineAuraLoop = false
-MainTab:AddToggle({
-	Name = "Mine Aura (Yakındaki Taşlar)",
-	Default = false,
-	Callback = function(Value)
-		MineAuraLoop = Value
-        if Value then
-            task.spawn(function()
-                while MineAuraLoop do
-                    task.wait(0.1)
-                    pcall(function()
-                        local pl = game.Players.LocalPlayer.Character.HumanoidRootPart.Position
-                        -- Adadaki blokları tarar (WildernessBlocks)
-                        for i,v in pairs(workspace.WildernessBlocks:GetChildren()) do
-                            if (v.Name:find("rock") or v.Name:find("Iron") or v.Name:find("Gold")) and v:FindFirstChild("1") then
-                                if (v:FindFirstChild("1").Position - pl).Magnitude < 25 then
-                                    
-                                    if Hashes["MiningHashName"] and Hashes["MiningHash"] then
-                                        local args = {
-                                            [1] = {
-                                                [Hashes["MiningHashName"]] = Hashes["MiningHash"],
-                                                ["part"] = v:FindFirstChild("1"),
-                                                ["block"] = v,
-                                                ["norm"] = Vector3.new(v.CFrame.Position),
-                                                ["pos"] = v:FindFirstChild("1").Position
-                                            }
-                                        }
-                                        -- Remote: CLIENT_BLOCK_HIT_REQUEST
-                                        game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[Hashes["BlockHitRemote"]]:InvokeServer(unpack(args))
-                                    end
-                                end
-                            end
+-- MINE AURA DÖNGÜSÜ
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if MineAuraEnabled and HashData.MiningHash then
+            pcall(function()
+                local plPos = LocalPlayer.Character.HumanoidRootPart.Position
+                -- Etraftaki madenleri bul
+                for i,v in pairs(workspace.WildernessBlocks:GetChildren()) do
+                    if (v.Name:find("rock") or v.Name:find("Iron") or v.Name:find("Gold")) and v:FindFirstChild("1") then
+                        if (v:FindFirstChild("1").Position - plPos).Magnitude < 30 then
+                            
+                            local args = {
+                                [1] = {
+                                    [HashData.MiningHashName] = HashData.MiningHash,
+                                    ["part"] = v:FindFirstChild("1"),
+                                    ["block"] = v,
+                                    ["norm"] = Vector3.new(v.CFrame.Position),
+                                    ["pos"] = v:FindFirstChild("1").Position
+                                }
+                            }
+                            
+                            game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[HashData.MiningRemote]:InvokeServer(unpack(args))
                         end
-                    end)
+                    end
                 end
             end)
         end
-	end    
-})
+    end
+end)
 
--- --- TELEPORT TAB ---
--[span_2](start_span)- Eski scriptteki koordinatları aldım[span_2](end_span)
+-- ==============================================================================
+-- 4. BUTONLARI EKLEME
+-- ==============================================================================
 
-TeleportTab:AddButton({
-	Name = "Kendi Adan (Home)",
-	Callback = function()
-      -- Eski usul adaya gitme komutu
-      game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged.CLIENT_VISIT_ISLAND_REQUEST:InvokeServer({["island"] = game.Players.LocalPlayer.UserId}) -- Basit yöntem
-      -- Eğer çalışmazsa eski scriptteki karmaşık fonksiyonu ekleriz
-  	end    
-})
+CreateToggle("Kill Aura (Hashli)", function(val)
+    KillAuraEnabled = val
+end)
 
-TeleportTab:AddButton({
-	Name = "Hub (Şehir Merkezi)",
-	Callback = function()
-      game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(0, 0, 0) -- Hub genelde 0,0,0 civarındadır ama eski scriptte portal bulma var.
-      Notify("Bilgi", "Hub portalına gidiliyor...")
-  	end    
-})
+CreateToggle("Mine Aura (Hashli)", function(val)
+    MineAuraEnabled = val
+end)
 
-TeleportTab:AddButton({
-	Name = "Slime Island",
-	Callback = function()
-      [span_3](start_span)game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(151, 37, -734) --[span_3](end_span)
-  	end    
-})
+local ScanBtn = Instance.new("TextButton")
+ScanBtn.Parent = Container
+ScanBtn.Text = "Hashleri Tekrar Tara"
+ScanBtn.Size = UDim2.new(0, 200, 0, 35)
+ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+ScanBtn.MouseButton1Click:Connect(function()
+    UpdateHashes()
+end)
 
-TeleportTab:AddButton({
-	Name = "Desert Island",
-	Callback = function()
-      [span_4](start_span)game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = CFrame.new(1475, 342, -875) --[span_4](end_span)
-  	end    
-})
-
-OrionLib:Init()
+-- Taramayı başlat
+task.spawn(UpdateHashes)
