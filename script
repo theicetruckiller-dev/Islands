@@ -1,112 +1,222 @@
 --[[
-    ROBLOX R6 MOBİL EMOTE: "GEL BURAYA" (TOGGLE VERSİYON)
+    UNIVERSAL MOBILE HUB (PVP & UTILITY)
     Yapımcı: Gemini & Kanka
-    Özellik: Tek Tıkla Aç/Kapa
+    Özellikler: ESP, Hitbox, Speed, Noclip
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-
--- Karakter Değişkenleri
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Torso = Character:WaitForChild("Torso")
-local RightShoulder = Torso:WaitForChild("Right Shoulder")
-
--- Orijinal pozisyonu sakla
-local OriginalC0 = RightShoulder.C0
-local IsPlaying = false -- Açık mı kapalı mı kontrolü
+local CoreGui = game:GetService("CoreGui")
 
 -- --- GUI OLUŞTURMA ---
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ToggleEmoteGUI"
-ScreenGui.Parent = game.CoreGui
+ScreenGui.Name = "UniversalHub"
+ScreenGui.Parent = CoreGui
 
-local EmoteBtn = Instance.new("TextButton")
-EmoteBtn.Name = "ToggleBtn"
-EmoteBtn.Size = UDim2.new(0, 60, 0, 60)
-EmoteBtn.Position = UDim2.new(0.8, 0, 0.5, 0) -- Ekranın sağ ortası
-EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0) -- Turuncu (Kapalı Rengi)
-EmoteBtn.Text = "OFF"
-EmoteBtn.TextSize = 20
-EmoteBtn.TextColor3 = Color3.new(1,1,1)
-EmoteBtn.Font = Enum.Font.FredokaOne
-EmoteBtn.BorderSizePixel = 0
-EmoteBtn.Active = true
-EmoteBtn.Draggable = true -- Sürüklenebilir
-EmoteBtn.Parent = ScreenGui
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 300, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -150, 0.5, -175)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true -- Sürüklenebilir
+MainFrame.Parent = ScreenGui
 
--- Yuvarlak Görünüm
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(1, 0)
-UICorner.Parent = EmoteBtn
+-- Başlık
+local Title = Instance.new("TextLabel")
+Title.Text = "🛠️ UNIVERSAL HUB"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+Title.TextColor3 = Color3.new(1,1,1)
+Title.Font = Enum.Font.FredokaOne
+Title.TextSize = 20
+Title.Parent = MainFrame
 
--- --- ANİMASYON FONKSİYONU ---
-local function StartAnimationLoop()
-    local startTime = tick()
-    local connection
-    
-    connection = RunService.RenderStepped:Connect(function()
-        -- Eğer karakter yenilendiyse veya script durdurulduysa
-        if not Character or not RightShoulder then 
-            connection:Disconnect()
-            return
-        end
+-- Kapatma Butonu
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "X"
+CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+CloseBtn.Position = UDim2.new(1, -40, 0, 0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.TextColor3 = Color3.new(1,1,1)
+CloseBtn.Parent = MainFrame
 
-        if IsPlaying then
-            -- === ANİMASYON AKTİF ===
-            local currentTime = tick() - startTime
-            
-            -- Kolu kaldır ve salla
-            local baseCFrame = CFrame.new(1, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0)
-            local wave = math.sin(currentTime * 8) * 0.6 -- Hız 8
-            local targetCFrame = baseCFrame * CFrame.Angles(0, 0, wave + 0.5) 
+-- Açma Butonu (Mini)
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Text = "🛠️"
+OpenBtn.Size = UDim2.new(0, 50, 0, 50)
+OpenBtn.Position = UDim2.new(0, 10, 0.5, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+OpenBtn.TextColor3 = Color3.new(1,1,1)
+OpenBtn.Visible = false
+OpenBtn.Draggable = true
+OpenBtn.Parent = ScreenGui
 
-            -- Yumuşak geçişle hareketi yap
-            RightShoulder.C0 = RightShoulder.C0:Lerp(targetCFrame, 0.2)
-            
-        else
-            -- === ANİMASYON KAPANIYOR ===
-            -- Yavaşça eski haline dön
-            RightShoulder.C0 = RightShoulder.C0:Lerp(OriginalC0, 0.1)
-            
-            -- Eski haline çok yaklaştıysa döngüyü bitir (Performans için)
-            if (RightShoulder.C0.Position - OriginalC0.Position).Magnitude < 0.01 then
-                RightShoulder.C0 = OriginalC0
-                connection:Disconnect()
+-- --- ÖZELLİK BUTONLARI ---
+
+-- 1. ESP (Wallhack)
+local EspBtn = Instance.new("TextButton")
+EspBtn.Text = "ESP: KAPALI"
+EspBtn.Size = UDim2.new(0.9, 0, 0.15, 0)
+EspBtn.Position = UDim2.new(0.05, 0, 0.15, 0)
+EspBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+EspBtn.TextColor3 = Color3.new(1,1,1)
+EspBtn.Parent = MainFrame
+
+local ESP_Enabled = false
+
+-- ESP Fonksiyonu
+local function UpdateESP()
+    for _, plr in pairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+            local head = plr.Character:FindFirstChild("Head")
+            if head and not head:FindFirstChild("ESP_Box") and ESP_Enabled then
+                -- Kutu Oluştur
+                local box = Instance.new("BillboardGui")
+                box.Name = "ESP_Box"
+                box.Adornee = head
+                box.Size = UDim2.new(0, 100, 0, 50)
+                box.AlwaysOnTop = true
+                box.Parent = head
+                
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Size = UDim2.new(1, 0, 1, 0)
+                nameLabel.Text = plr.Name
+                nameLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.TextStrokeTransparency = 0
+                nameLabel.Parent = box
+            elseif head and head:FindFirstChild("ESP_Box") and not ESP_Enabled then
+                head.ESP_Box:Destroy()
             end
         end
-    end)
+    end
 end
 
--- --- BUTON TIKLAMA OLAYI ---
-EmoteBtn.MouseButton1Click:Connect(function()
-    IsPlaying = not IsPlaying -- Durumu tersine çevir (Açıksa kapat, kapalıysa aç)
-
-    if IsPlaying then
-        -- AÇILDI
-        EmoteBtn.Text = "ON"
-        EmoteBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Yeşil
-        StartAnimationLoop() -- Döngüyü başlat
+EspBtn.MouseButton1Click:Connect(function()
+    ESP_Enabled = not ESP_Enabled
+    if ESP_Enabled then
+        EspBtn.Text = "ESP: AÇIK ✅"
+        EspBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
     else
-        -- KAPANDI
-        EmoteBtn.Text = "OFF"
-        EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0) -- Turuncu
-        -- Döngü zaten "else" kısmında kendini durduracak
+        EspBtn.Text = "ESP: KAPALI"
+        EspBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     end
 end)
 
--- --- KARAKTER ÖLÜRSE YENİLE ---
-LocalPlayer.CharacterAdded:Connect(function(newChar)
-    Character = newChar
-    if Character:FindFirstChild("Torso") then
-        Torso = Character:WaitForChild("Torso")
-        RightShoulder = Torso:WaitForChild("Right Shoulder")
-        OriginalC0 = RightShoulder.C0
+-- Sürekli kontrol et (yeni girenler için)
+RunService.RenderStepped:Connect(UpdateESP)
+
+
+-- 2. HITBOX EXPANDER (Kafa Büyütücü)
+local HitboxBtn = Instance.new("TextButton")
+HitboxBtn.Text = "HITBOX: KAPALI"
+HitboxBtn.Size = UDim2.new(0.9, 0, 0.15, 0)
+HitboxBtn.Position = UDim2.new(0.05, 0, 0.35, 0)
+HitboxBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+HitboxBtn.TextColor3 = Color3.new(1,1,1)
+HitboxBtn.Parent = MainFrame
+
+local Hitbox_Enabled = false
+local Hitbox_Size = 5 -- Kafa boyutu ne kadar olsun?
+
+HitboxBtn.MouseButton1Click:Connect(function()
+    Hitbox_Enabled = not Hitbox_Enabled
+    if Hitbox_Enabled then
+        HitboxBtn.Text = "HITBOX: AÇIK (KAFA x5) ✅"
+        HitboxBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
         
-        -- Ölünce butonu sıfırla
-        IsPlaying = false
-        EmoteBtn.Text = "OFF"
-        EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
+        -- Aktif edince büyüt
+        RunService.RenderStepped:Connect(function()
+            if not Hitbox_Enabled then return end
+            for _, plr in pairs(Players:GetPlayers()) do
+                if plr ~= LocalPlayer and plr.Character and plr.Character:FindFirstChild("Head") then
+                    local head = plr.Character.Head
+                    head.Size = Vector3.new(Hitbox_Size, Hitbox_Size, Hitbox_Size)
+                    head.CanCollide = false
+                    head.Transparency = 0.5 -- Yarı saydam yap ki görelim
+                    head.Color = Color3.fromRGB(255, 0, 0)
+                end
+            end
+        end)
+    else
+        HitboxBtn.Text = "HITBOX: KAPALI"
+        HitboxBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     end
 end)
+
+
+-- 3. HIZ (WalkSpeed)
+local SpeedBtn = Instance.new("TextButton")
+SpeedBtn.Text = "HIZ: NORMAL"
+SpeedBtn.Size = UDim2.new(0.9, 0, 0.15, 0)
+SpeedBtn.Position = UDim2.new(0.05, 0, 0.55, 0)
+SpeedBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+SpeedBtn.TextColor3 = Color3.new(1,1,1)
+SpeedBtn.Parent = MainFrame
+
+local SpeedToggle = false
+
+SpeedBtn.MouseButton1Click:Connect(function()
+    SpeedToggle = not SpeedToggle
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        if SpeedToggle then
+            char.Humanoid.WalkSpeed = 50 -- Hız ayarı
+            SpeedBtn.Text = "HIZ: 50 (AKTİF)"
+            SpeedBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+        else
+            char.Humanoid.WalkSpeed = 16 -- Normal hız
+            SpeedBtn.Text = "HIZ: NORMAL"
+            SpeedBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        end
+    end
+end)
+
+
+-- 4. NOCLIP (Duvar Geçme)
+local NoclipBtn = Instance.new("TextButton")
+NoclipBtn.Text = "NOCLIP: KAPALI"
+NoclipBtn.Size = UDim2.new(0.9, 0, 0.15, 0)
+NoclipBtn.Position = UDim2.new(0.05, 0, 0.75, 0)
+NoclipBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+NoclipBtn.TextColor3 = Color3.new(1,1,1)
+NoclipBtn.Parent = MainFrame
+
+local Noclip_Enabled = false
+
+NoclipBtn.MouseButton1Click:Connect(function()
+    Noclip_Enabled = not Noclip_Enabled
+    if Noclip_Enabled then
+        NoclipBtn.Text = "NOCLIP: AÇIK ✅"
+        NoclipBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
+    else
+        NoclipBtn.Text = "NOCLIP: KAPALI"
+        NoclipBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if Noclip_Enabled and LocalPlayer.Character then
+        for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
+-- UI Kontrolleri
+CloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+print("Kanka Universal Hub Hazır!")
