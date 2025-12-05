@@ -1,239 +1,112 @@
 --[[
-    ISLANDS GOD - ORIGINAL HASH VERSION
-    Düzenleyen: Gemini
-    Durum: Orijinal Hash tarama mantığı entegre edildi. GUI gömülü.
+    ROBLOX R6 MOBİL EMOTE: "GEL BURAYA" (TOGGLE VERSİYON)
+    Yapımcı: Gemini & Kanka
+    Özellik: Tek Tıkla Aç/Kapa
 ]]
 
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- ==============================================================================
--- 1. BASİT VE GARANTİ GUI (HATA VERMEZ)
--- ==============================================================================
+-- Karakter Değişkenleri
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Torso = Character:WaitForChild("Torso")
+local RightShoulder = Torso:WaitForChild("Right Shoulder")
+
+-- Orijinal pozisyonu sakla
+local OriginalC0 = RightShoulder.C0
+local IsPlaying = false -- Açık mı kapalı mı kontrolü
+
+-- --- GUI OLUŞTURMA ---
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "IslandsGodHash"
-if game:GetService("CoreGui"):FindFirstChild("IslandsGodHash") then
-    game:GetService("CoreGui"):FindFirstChild("IslandsGodHash"):Destroy()
-end
-ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.Name = "ToggleEmoteGUI"
+ScreenGui.Parent = game.CoreGui
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Name = "MainFrame"
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Position = UDim2.new(0.5, -110, 0.5, -150)
-MainFrame.Size = UDim2.new(0, 220, 0, 350)
-MainFrame.Active = true
-MainFrame.Draggable = true -- Sürüklenebilir
+local EmoteBtn = Instance.new("TextButton")
+EmoteBtn.Name = "ToggleBtn"
+EmoteBtn.Size = UDim2.new(0, 60, 0, 60)
+EmoteBtn.Position = UDim2.new(0.8, 0, 0.5, 0) -- Ekranın sağ ortası
+EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0) -- Turuncu (Kapalı Rengi)
+EmoteBtn.Text = "OFF"
+EmoteBtn.TextSize = 20
+EmoteBtn.TextColor3 = Color3.new(1,1,1)
+EmoteBtn.Font = Enum.Font.FredokaOne
+EmoteBtn.BorderSizePixel = 0
+EmoteBtn.Active = true
+EmoteBtn.Draggable = true -- Sürüklenebilir
+EmoteBtn.Parent = ScreenGui
 
-local Title = Instance.new("TextLabel")
-Title.Parent = MainFrame
-Title.Text = "ISLANDS GOD (Hash)"
-Title.Size = UDim2.new(1, 0, 0, 30)
-Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
+-- Yuvarlak Görünüm
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = EmoteBtn
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Parent = MainFrame
-StatusLabel.Text = "Hash Taranıyor..."
-StatusLabel.Position = UDim2.new(0, 0, 0, 30)
-StatusLabel.Size = UDim2.new(1, 0, 0, 20)
-StatusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.TextSize = 12
-
-local Container = Instance.new("ScrollingFrame")
-Container.Parent = MainFrame
-Container.Position = UDim2.new(0, 0, 0, 55)
-Container.Size = UDim2.new(1, 0, 1, -55)
-Container.BackgroundTransparency = 1
-Container.ScrollBarThickness = 4
-
-local UIList = Instance.new("UIListLayout")
-UIList.Parent = Container
-UIList.Padding = UDim.new(0, 5)
-UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-function CreateToggle(text, callback)
-    local Btn = Instance.new("TextButton")
-    Btn.Parent = Container
-    Btn.Text = text .. " [OFF]"
-    Btn.Size = UDim2.new(0, 200, 0, 35)
-    Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+-- --- ANİMASYON FONKSİYONU ---
+local function StartAnimationLoop()
+    local startTime = tick()
+    local connection
     
-    local enabled = false
-    Btn.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        if enabled then
-            Btn.Text = text .. " [ON]"
-            Btn.BackgroundColor3 = Color3.fromRGB(0, 150, 0)
-        else
-            Btn.Text = text .. " [OFF]"
-            Btn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    connection = RunService.RenderStepped:Connect(function()
+        -- Eğer karakter yenilendiyse veya script durdurulduysa
+        if not Character or not RightShoulder then 
+            connection:Disconnect()
+            return
         end
-        callback(enabled)
+
+        if IsPlaying then
+            -- === ANİMASYON AKTİF ===
+            local currentTime = tick() - startTime
+            
+            -- Kolu kaldır ve salla
+            local baseCFrame = CFrame.new(1, 0.5, 0) * CFrame.Angles(0, math.rad(90), 0)
+            local wave = math.sin(currentTime * 8) * 0.6 -- Hız 8
+            local targetCFrame = baseCFrame * CFrame.Angles(0, 0, wave + 0.5) 
+
+            -- Yumuşak geçişle hareketi yap
+            RightShoulder.C0 = RightShoulder.C0:Lerp(targetCFrame, 0.2)
+            
+        else
+            -- === ANİMASYON KAPANIYOR ===
+            -- Yavaşça eski haline dön
+            RightShoulder.C0 = RightShoulder.C0:Lerp(OriginalC0, 0.1)
+            
+            -- Eski haline çok yaklaştıysa döngüyü bitir (Performans için)
+            if (RightShoulder.C0.Position - OriginalC0.Position).Magnitude < 0.01 then
+                RightShoulder.C0 = OriginalC0
+                connection:Disconnect()
+            end
+        end
     end)
 end
 
--- ==============================================================================
--- 2. HASH SİSTEMİ (ATTIGIN DOSYADAN KURTARILAN KISIM)
--- ==============================================================================
-local HashData = {
-    KillRemote = nil,
-    KillHashName = nil, -- Hash adı (örn: sol taraf)
-    KillHash = nil,     -- Hash değeri (örn: sağ taraf)
-    
-    MiningRemote = "CLIENT_BLOCK_HIT_REQUEST", -- Genelde sabittir ama kontrol ederiz
-    MiningHashName = nil,
-    MiningHash = nil
-}
+-- --- BUTON TIKLAMA OLAYI ---
+EmoteBtn.MouseButton1Click:Connect(function()
+    IsPlaying = not IsPlaying -- Durumu tersine çevir (Açıksa kapat, kapalıysa aç)
 
-function UpdateHashes()
-    StatusLabel.Text = "Sistem Taranıyor (3sn)..."
-    task.wait(0.1)
-    
-    -- COMBAT HASH (Kill Aura İçin)
-    -- getgc ile attemptHit fonksiyonunu bulup içindeki değerleri çalıyoruz
-    for i,v in pairs(getgc(true)) do
-        if type(v) == "function" and getinfo(v).name == "attemptHit" then
-            for i2,v2 in pairs(getprotos(v)) do
-                for i3,v3 in pairs(getprotos(v2)) do
-                    local consts = getconstants(v3)
-                    -- Remote ismini bul (genelde uzun karışık string)
-                    for _, c in pairs(consts) do
-                        if type(c) == "string" and #c > 10 then -- Remote isimleri uzun olur
-                             -- ReplicatedStorage kontrolü
-                             local check = ReplicatedStorage:WaitForChild("rbxts_include"):WaitForChild("node_modules"):WaitForChild("@rbxts"):WaitForChild("net"):WaitForChild("out"):WaitForChild("_NetManaged"):FindFirstChild(c)
-                             if check then
-                                HashData.KillRemote = c
-                             end
-                        end
-                    end
-                    if consts[4] then HashData.KillHashName = consts[4] end
-                end
-            end
-            local upvals = getupvalues(v)
-            if upvals and upvals[5] then HashData.KillHash = upvals[5] end
-        end
-    end
-    
-    -- MINING HASH (Maden/Blok Kırma İçin)
-    for i,v in pairs(getgc(true)) do
-        if type(v) == "function" and getinfo(v).name == "onBlockHit" then
-            for i2,v2 in pairs(getprotos(v)) do
-                local consts = getconstants(v2)
-                if table.find(consts, "Get") then
-                    HashData.MiningHashName = consts[8]
-                    if consts[10] and consts[11] then
-                        HashData.MiningHash = consts[10] .. consts[11]
-                    end
-                end
-            end
-        end
-    end
-    
-    if HashData.KillRemote then
-        StatusLabel.Text = "Hashler Bulundu! ✅"
-        StatusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+    if IsPlaying then
+        -- AÇILDI
+        EmoteBtn.Text = "ON"
+        EmoteBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 0) -- Yeşil
+        StartAnimationLoop() -- Döngüyü başlat
     else
-        StatusLabel.Text = "Hash Bulunamadı! ⚠️ (Riskli)"
-        StatusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    end
-end
-
--- ==============================================================================
--- 3. ÖZELLİKLER
--- ==============================================================================
-
-local KillAuraEnabled = false
-local MineAuraEnabled = false
-
--- KILL AURA DÖNGÜSÜ
-task.spawn(function()
-    while true do
-        task.wait(0.1) -- Çok hızlı yapıp crashletmeyelim
-        if KillAuraEnabled and HashData.KillRemote and HashData.KillHash then
-            pcall(function()
-                local plPos = LocalPlayer.Character.HumanoidRootPart.Position
-                for i,v in pairs(workspace.WildernessIsland.Entities:GetChildren()) do
-                    if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
-                        if (v.HumanoidRootPart.Position - plPos).Magnitude < 40 then
-                            
-                            local args = {
-                                [1] = "DUMMY_HASH", -- Oyun bazen burayı kontrol etmez
-                                [2] = {
-                                    [1] = {
-                                        [HashData.KillHashName] = HashData.KillHash,
-                                        ["hitUnit"] = v
-                                    }
-                                }
-                            }
-                            -- Hashli Remote'u ateşle
-                             game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[HashData.KillRemote]:FireServer(unpack(args))
-                        end
-                    end
-                end
-            end)
-        end
+        -- KAPANDI
+        EmoteBtn.Text = "OFF"
+        EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0) -- Turuncu
+        -- Döngü zaten "else" kısmında kendini durduracak
     end
 end)
 
--- MINE AURA DÖNGÜSÜ
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if MineAuraEnabled and HashData.MiningHash then
-            pcall(function()
-                local plPos = LocalPlayer.Character.HumanoidRootPart.Position
-                -- Etraftaki madenleri bul
-                for i,v in pairs(workspace.WildernessBlocks:GetChildren()) do
-                    if (v.Name:find("rock") or v.Name:find("Iron") or v.Name:find("Gold")) and v:FindFirstChild("1") then
-                        if (v:FindFirstChild("1").Position - plPos).Magnitude < 30 then
-                            
-                            local args = {
-                                [1] = {
-                                    [HashData.MiningHashName] = HashData.MiningHash,
-                                    ["part"] = v:FindFirstChild("1"),
-                                    ["block"] = v,
-                                    ["norm"] = Vector3.new(v.CFrame.Position),
-                                    ["pos"] = v:FindFirstChild("1").Position
-                                }
-                            }
-                            
-                            game:GetService("ReplicatedStorage").rbxts_include.node_modules["@rbxts"].net.out._NetManaged[HashData.MiningRemote]:InvokeServer(unpack(args))
-                        end
-                    end
-                end
-            end)
-        end
+-- --- KARAKTER ÖLÜRSE YENİLE ---
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    if Character:FindFirstChild("Torso") then
+        Torso = Character:WaitForChild("Torso")
+        RightShoulder = Torso:WaitForChild("Right Shoulder")
+        OriginalC0 = RightShoulder.C0
+        
+        -- Ölünce butonu sıfırla
+        IsPlaying = false
+        EmoteBtn.Text = "OFF"
+        EmoteBtn.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
     end
 end)
-
--- ==============================================================================
--- 4. BUTONLARI EKLEME
--- ==============================================================================
-
-CreateToggle("Kill Aura (Hashli)", function(val)
-    KillAuraEnabled = val
-end)
-
-CreateToggle("Mine Aura (Hashli)", function(val)
-    MineAuraEnabled = val
-end)
-
-local ScanBtn = Instance.new("TextButton")
-ScanBtn.Parent = Container
-ScanBtn.Text = "Hashleri Tekrar Tara"
-ScanBtn.Size = UDim2.new(0, 200, 0, 35)
-ScanBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
-ScanBtn.MouseButton1Click:Connect(function()
-    UpdateHashes()
-end)
-
--- Taramayı başlat
-task.spawn(UpdateHashes)
